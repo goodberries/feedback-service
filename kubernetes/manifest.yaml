@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
       - name: feedback-service
-        image: yashwanthydg/feedback-service:v1 # <-- IMPORTANT: Change this
+        image: yashwanthydg/feedback-service:v2 # <-- IMPORTANT: Change this
         ports:
         - containerPort: 8002
         env:
