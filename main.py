@@ -16,25 +16,19 @@ class Feedback(BaseModel):
 @app.on_event("startup")
 def startup_event():
     """
-    On startup, connect to the database and create the table if it doesn't exist.
+    On startup, simply check the database connection.
+    The bot-service is responsible for creating the table.
     """
     try:
         with engine.connect() as connection:
-            # This is a simplified schema for Phase 2
-            connection.execute(text("""
-                CREATE TABLE IF NOT EXISTS interactions (
-                    interaction_id UUID PRIMARY KEY,
-                    user_query TEXT,
-                    bot_response TEXT,
-                    feedback SMALLINT DEFAULT 0,
-                    timestamp TIMESTAMPTZ DEFAULT NOW()
-                );
-            """))
-        print("Database connection successful and table checked/created.")
+            # We just need to verify the connection is alive.
+            connection.execute(text("SELECT 1"))
+        print("Database connection successful.")
     except Exception as e:
-        print(f"Database connection failed: {e}")
-        # In a real app, you might want to handle this more gracefully
-        # For now, we'll let it fail and see the error in the logs.
+        print(f"Database connection failed during startup: {e}")
+        # The pod will likely fail to start, which is what we want
+        # if the database is not available.
+        raise e
 
 @app.post("/feedback")
 def receive_feedback(feedback: Feedback):
@@ -43,11 +37,15 @@ def receive_feedback(feedback: Feedback):
     """
     try:
         with engine.connect() as connection:
+            # Use text() to construct the SQL statement safely
+            stmt = text("UPDATE interactions SET feedback = :score WHERE interaction_id = :id")
             connection.execute(
-                text("UPDATE interactions SET feedback = :score WHERE interaction_id = :id"),
+                stmt,
                 {"score": feedback.feedback_score, "id": feedback.interaction_id}
             )
             connection.commit()
         return {"status": "success", "interaction_id": feedback.interaction_id}
     except Exception as e:
+        # Log the error for debugging
+        print(f"Error updating feedback for interaction {feedback.interaction_id}: {e}")
         raise HTTPException(status_code=500, detail=f"Error updating feedback: {str(e)}")
